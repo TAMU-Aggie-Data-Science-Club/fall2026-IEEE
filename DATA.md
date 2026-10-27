@@ -34,6 +34,7 @@ Document every source here as you adopt it. Replace these placeholders.
 |--------|--------------|---------------|---------|-------------|-------|
 | _e.g. Example Open Dataset_ | `https://…` | Manual download → `data/raw/` | CC-BY-4.0 | None | Updated annually |
 | | | | | | |
+| Entropy synthetic ESP32 thermal fixtures | User-supplied `Mock Data/` and `Data Contract README.pdf` (local project files) | Copy `model_training_timeseries.csv`, `model_training_scenarios.csv`, `rail_config.csv` into `data/raw/entropy_mock/`; see [experiment instructions](experiments/alliander/README.md) | TBD; authorized by user for this local experiment, redistribution not established | Synthetic sensor values; no person identifiers in CSV schema | 194,400 rows, 36 unmitigated RC scenarios (25 train / 5 val / 6 test). Not measured ESP32 readings or IEEE/IEC outputs. Keep all CSVs and row-level results in ignored `data/`. |
 
 ## Local layout convention
 

@@ -12,7 +12,7 @@
 | 2 | Data sourcing & access | Identify and secure the data sources (see [`DATA.md`](DATA.md)). | PM + members | Weeks 1–2 |
 | 3 | Data exploration (EDA) | Load, profile, and document the data; surface quality issues. | Members | Weeks 2–3 |
 | 4 | Data cleaning & prep | Reproducible pipeline from raw → analysis-ready. | Members | Weeks 3–4 |
-| 5 | Baseline model / analysis | First end-to-end result to beat. | Members | Weeks 4–5 |
+| 5 | Baseline model / analysis | First end-to-end result to beat. Prince's [Alliander experiment](experiments/alliander/README.md) evaluates 60 s / 300 s forecasts on synthetic ESP32 scenarios against persistence, to establish a reproducible accuracy and laptop-runtime comparison. | Members; Prince (first model) | Weeks 4–5; experiment results recorded on branch |
 | 6 | Iteration & evaluation | Improve on the baseline; agree on evaluation metrics. | Members + PM | Weeks 5–7 |
 | 7 | Findings & deliverable | Report / dashboard / model artifact for the audience. | Members + PM | Weeks 7–8 |
 | 8 | Handoff & retro | Documentation, reproducibility check, lessons learned. | PM | Week 8 |
