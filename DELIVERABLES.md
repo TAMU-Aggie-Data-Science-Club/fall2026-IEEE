@@ -2,34 +2,26 @@
 
 > **How to read this file.** This is the PMs' best current estimate of what the project needs to ship and roughly when. It is a **living plan, not a contract** — deliverables will be added, dropped, split, or resequenced as the team learns more. The authoritative, up-to-the-minute picture always lives in the repo's **GitHub Issues and Project board**; this file is the high-level narrative that keeps everyone oriented.
 >
-> PMs: replace the placeholder rows below with your real deliverables. Keep each deliverable small enough to become one or a few issues.
+> The five software checkpoints follow `ENTROPY_AGENTS.md`, with simulation first.
+> Physical commissioning is a separate approval-gated follow-up.
 
 ## Milestones at a glance
 
 | # | Deliverable | Description | Owner (role) | Target |
 |---|-------------|-------------|--------------|--------|
-| 1 | Project scoping | Define the problem, success criteria, and out-of-scope items. | PM | Week 1 |
-| 2 | Data sourcing & access | Identify and secure the data sources (see [`DATA.md`](DATA.md)). | PM + members | Weeks 1–2 |
-| 3 | Data exploration (EDA) | Load, profile, and document the data; surface quality issues. | Members | Weeks 2–3 |
-| 4 | Data cleaning & prep | Reproducible pipeline from raw → analysis-ready. | Members | Weeks 3–4 |
-| 5 | Baseline model / analysis | First end-to-end result to beat. | Members | Weeks 4–5 |
-| 6 | Iteration & evaluation | Improve on the baseline; agree on evaluation metrics. | Members + PM | Weeks 5–7 |
-| 7 | Findings & deliverable | Report / dashboard / model artifact for the audience. | Members + PM | Weeks 7–8 |
-| 8 | Handoff & retro | Documentation, reproducibility check, lessons learned. | PM | Week 8 |
+| 1 | Repository and interface | Packages, shared NDJSON schema and fixture validation so teams share one contract. | Both software teams | Checkpoint 1 |
+| 2 | Deterministic closed loop | Mutable RC plant, fake bridge/controller, local interlocks, policy/ACK/retry; prioritized before ML to prove shedding and cooling. | Algorithm + embedded | Checkpoint 2 |
+| 3 | Forecast comparisons | Persistence, RC, trained Ridge/LSTM/Transformer, causal splits, artifacts, held-out metrics and honest fallback. | Model team | Checkpoint 3 |
+| 4 | Transport and firmware | Monitor-only USB serial, two dry-run ESP32 builds and compile/runtime output gates so software can progress before safe hardware configuration. | Algorithm + embedded | Checkpoint 4 |
+| 5 | Dashboard and QA | Local dashboard, supervised virtual restore, SQLite/CSV, fault tests and reproducible handoff. | Both software teams | Checkpoint 5 |
+| 6 | Physical commissioning | Boards/pins/calibration/polarity/ratings/thresholds, independent cutoff and supervised tests; separated because no hardware safety settings are approved. | Hardware lead + faculty | Pending approval |
 
 ## Timeline (rough)
 
 ```
-Week:   1     2     3     4     5     6     7     8
-        |-----|-----|-----|-----|-----|-----|-----|
-Scope   ██
-Data          ████
-EDA                 ████
-Prep                      ████
-Baseline                        ██
-Iterate                              ████████
-Deliver                                       ████
-Retro                                              ██
+Sequence: contract -> closed-loop demo -> model comparisons -> dry-run firmware
+          -> dashboard and software QA
+Later:    physical commissioning after human safety approval
 ```
 
 ## Working agreements

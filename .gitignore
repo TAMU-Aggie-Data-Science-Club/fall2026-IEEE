@@ -25,3 +25,17 @@ __pycache__/
 venv/
 .env
 .ipynb_checkpoints/
+
+# Local synthetic inputs, generated artifacts and firmware toolchains
+model/data/
+model/artifacts/*
+!model/artifacts/.gitkeep
+model/reports/*
+!model/reports/.gitkeep
+algorithm/runs/*
+!algorithm/runs/.gitkeep
+*.egg-info/
+.pytest_cache/
+.pio/
+.test-tools/
+pytest-cache-files-*/

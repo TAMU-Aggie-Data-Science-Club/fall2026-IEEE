@@ -1,0 +1,4 @@
+rail_id,load_description,supply_nominal_v,critical_hotspot_c,warning_hotspot_c,thermal_sensor_example,current_sensor_example,shed_allowed,load_priority,measurement_position,notes
+rail_1,priority demo load,12,80,70,DS18B20,ACS712 DC-capable,0,high,voltage downstream of relay,protected load; alarm instead of automatic shed
+rail_2,non-critical demo heating load,12,80,70,DS18B20,ACS712 DC-capable,1,low,voltage downstream of relay,automatic relay shed permitted
+rail_3,non-critical demo lamp/heating load,12,80,70,DS18B20,ACS712 DC-capable,1,low,voltage downstream of relay,automatic relay shed permitted

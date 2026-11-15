@@ -1,0 +1,4 @@
+timestamp_utc,command_id,source_device_id,destination_device_id,rail_id,status,applied_enabled,controller_uptime_ms,latency_ms,note
+2026-10-19T20:13:42.302Z,CMD-0001,esp32_rig_01,esp32_bridge_01,rail_2,APPLIED,0,822347,102,relay_opened
+2026-10-19T20:26:20.298Z,CMD-0002,esp32_rig_01,esp32_bridge_01,rail_2,APPLIED,1,1580373,98,relay_closed
+2026-10-19T20:30:36.334Z,CMD-0003,esp32_rig_01,esp32_bridge_01,rail_3,APPLIED,0,1836328,134,relay_opened

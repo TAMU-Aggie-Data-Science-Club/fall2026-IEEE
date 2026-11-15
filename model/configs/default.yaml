@@ -1,0 +1,10 @@
+{
+  "lookback_s": 300,
+  "downsample_s": 5,
+  "stride_s": 30,
+  "short_gap_limit_s": 5,
+  "seed": 42,
+  "rc_resistance_c_per_w": 3.2,
+  "rc_tau_s": 300,
+  "synthetic_only": true
+}

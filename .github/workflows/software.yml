@@ -1,0 +1,19 @@
+name: Software simulation
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  offline-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e './model[dev]' -e './algorithm[ui,dev]'
+      - run: python -m compileall -q model/src algorithm/src algorithm/dashboard
+      # Training CSVs are intentionally local; full training acceptance follows
+      # manual fixture installation per DATA.md. CI does not download private data.
+      - run: python -m pytest model/tests/test_inference.py algorithm/tests -q
+      - run: python -m grid_algorithm simulate --duration-s 900 --speed 0
+      - run: python -m grid_algorithm replay --speed 0 --dry-run

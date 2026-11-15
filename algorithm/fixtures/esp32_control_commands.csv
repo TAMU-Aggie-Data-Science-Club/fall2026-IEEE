@@ -1,0 +1,4 @@
+timestamp_utc,command_id,source_device_id,destination_device_id,rail_id,action,enabled_requested,reason,predicted_temp_plus_180s_c,observed_hotspot_temp_c,priority,ack_timeout_ms
+2026-10-19T20:13:42.200Z,CMD-0001,esp32_bridge_01,esp32_rig_01,rail_2,SET_RAIL_ENABLED,0,PREDICTED_OVERHEAT_180S,75.97,64.53,high,1000
+2026-10-19T20:26:20.200Z,CMD-0002,esp32_bridge_01,esp32_rig_01,rail_2,SET_RAIL_ENABLED,1,MANUAL_RESTORE_AFTER_COOLDOWN,,30.09,manual,1000
+2026-10-19T20:30:36.200Z,CMD-0003,esp32_bridge_01,esp32_rig_01,rail_3,SET_RAIL_ENABLED,0,PREDICTED_OVERHEAT_180S,75.83,65.76,high,1000

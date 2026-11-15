@@ -1,39 +1,64 @@
-# ADSC Project Template
+﻿# IEEE × ADSC Extreme Heat Grid Stress Predictor
 
-A starter repository for **project managers (PMs)** in the [TAMU Aggie Data Science Club](https://github.com/TAMU-Aggie-Data-Science-Club). Click **Use this template** to spin up a new project with the club's conventions, workflow, and scaffolding already in place.
+A laptop forecasts hot-spot proxy temperatures and requests low-priority **12 V demo branch** shedding through ESP32 B (bridge) and ESP32 A (local interlocks). The full loop runs without hardware. All supplied fixtures and virtual results are **synthetic proof of concept**, not IEEE-endorsed or hardware-calibrated protection.
 
-## What's in here
+## Setup and one-command demo
 
-| File / folder | Purpose |
-|---|---|
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | **Start here.** How the team runs the project on GitHub — PM vs. member roles, the Discussion → Issue → PR → `main` flow, branching, worktrees, reviews. |
-| [`DELIVERABLES.md`](DELIVERABLES.md) | Suggested deliverables and rough timeline. A living plan, not a contract. |
-| [`DATA.md`](DATA.md) | Where the project's data comes from, how to find sources, and how to think about using them. |
-| [`CODEOWNERS`](CODEOWNERS) | **Team roster + review policy in one file.** PMs, members, and the code-owner rule that GitHub enforces on PRs into `main`. |
-| [`AGENTS.md`](AGENTS.md) | Machine-facing workflow rules for AI coding agents. |
-| [`data/`](data/) | Working folder for actual datasets. **Git-ignored** — data is never committed. |
-| [`.github/workflows/gitleaks.yml`](.github/workflows/gitleaks.yml) | Secret-scanning check that runs on every push and every PR into `main`. |
-| [`.github/dependabot.yml`](.github/dependabot.yml) | Weekly automatic PRs to bump vulnerable dependencies. |
-| [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) | Prefilled PR body with the checklist. |
-| [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/) | Feature and Bug issue forms. |
+From repository root, in Windows PowerShell or Unix:
 
-## How to use this template
+```sh
+python -m venv .venv
+```
 
-1. **Create your repo from it.** On GitHub, click **Use this template → Create a new repository** (private, under `TAMU-Aggie-Data-Science-Club`).
-2. **Read [`CONTRIBUTING.md`](CONTRIBUTING.md).** Everyone on the team reads it; it's the operating manual.
-3. **Fill in [`DELIVERABLES.md`](DELIVERABLES.md)** with your project's real deliverables and dates.
-4. **Fill in [`DATA.md`](DATA.md)** with your actual data sources.
-5. **Populate [`CODEOWNERS`](CODEOWNERS)** with the PMs' names/handles/emails, and update the `*` rule line at the bottom to list PMs by `@handle`.
-6. **Update the Discussions URL** in [`.github/ISSUE_TEMPLATE/config.yml`](.github/ISSUE_TEMPLATE/config.yml) to point at your repo.
-7. **Enable Discussions** on the repo (Settings → Features → Discussions).
-8. **Open your first issue** and run the flow.
+Activate using `.venv\Scripts\Activate.ps1` in PowerShell, or `source .venv/bin/activate` on Unix. Then:
 
-Branch protection (require PR + Code Owner review, block force-push, gate on Gitleaks) is applied at the org level by officers, not per-repo by PMs.
+```sh
+python -m pip install -e './model[dev]' -e './algorithm[ui,dev]'
+python -m grid_algorithm simulate --scenario dual_overload --duration-s 1800 --speed 0
+```
 
-## Team
+The single demo command runs RC forecasting, a mutable plant, validated fake bridge/controller, applied ACKs, electrical switch-off and gradual cooling. It writes `algorithm/runs/demo.sqlite` and prints a machine-readable summary. Rail 1 remains protected; no automatic restoration occurs. After installation, runtime needs no network.
 
-The current PMs and members for this project are listed in [`CODEOWNERS`](CODEOWNERS). PMs listed there are the code owners for PRs into `main`.
+## Train, replay, inspect and test
 
-## The one-paragraph version
+Copy the supplied synthetic package into `model/data/` and `algorithm/fixtures/` as documented in [DATA.md](DATA.md). Existing fixtures are preserved. Missing training inputs produce explicit errors; the RC demo still runs.
 
-Every change starts as either a **Discussion** (for ideation) or directly as a **GitHub Issue** (for something concrete to build). Work happens on a **branch** (organized as a small tree per issue, each slice optionally in its own **worktree**), opened as a **pull request**, reviewed (by a teammate and, ideally, an auto-review agent), and merged **up the tree**. Only a **PM** (via `CODEOWNERS`) approves the merge into `main`. `main` is always in a known-good state. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full workflow.
+```sh
+python -m grid_model inspect
+python -m grid_model train --model ridge --output model/artifacts/ridge-demo
+python -m grid_model evaluate --artifact model/artifacts/ridge-demo --split test
+python -m grid_algorithm simulate --artifact model/artifacts/ridge-demo --duration-s 1800
+python -m grid_algorithm replay --speed 0 --dry-run
+python -m streamlit run algorithm/dashboard/app.py --server.address 127.0.0.1
+python -m grid_algorithm export --log algorithm/runs/demo.sqlite --output algorithm/runs/events.csv
+python -m pytest model/tests algorithm/tests -q
+```
+
+For optional neural comparisons, install `python -m pip install -e './model[ml,dev]'`, then run `python -m grid_model train --model lstm --quick` and `python -m grid_model train --model transformer --quick`. Omit `--quick` for full training. Every subcommand supports `--help`.
+
+## Project map
+
+```text
+model/       causal features, RC/persistence/Ridge/LSTM/Transformer, CLI,
+             configuration, local data/artifacts and model tests
+algorithm/   NDJSON, replay/live transport, plant/controller/bridge, policy,
+             coordinator, SQLite/CSV, dashboard and integration tests
+  firmware/  rig_controller (ESP32 A), bridge (ESP32 B), common protocol
+```
+
+[Model documentation](model/README.md) covers leakage prevention, metrics and fallback. [Algorithm documentation](algorithm/README.md) defines the protocol, dashboard, safety state machine and hardware checklist. [DELIVERABLES.md](DELIVERABLES.md) tracks checkpoints; [DATA.md](DATA.md) documents synthetic provenance. [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md) and [STRUCTURE.md](STRUCTURE.md) govern workflow and roles.
+
+[Observed validation results](algorithm/VALIDATION.md) include model metrics,
+closed-loop evidence and dry-run build sizes. `python algorithm/scripts/smoke.py`
+runs an assertion-checked offline demo. Install PlatformIO with
+`python -m pip install platformio` if `pio` is unavailable.
+
+## Hardware remains disabled
+
+```sh
+pio run -d algorithm/firmware/rig_controller
+pio run -d algorithm/firmware/bridge
+python -m grid_algorithm live --port YOUR_ESP32_B_PORT --baud 115200 --monitor-only
+```
+
+These build dry-run firmware and start monitor-only ingestion. They do not flash or actuate. Exact boards/pins, calibration, polarity, electrical ratings, real thresholds, independent thermal cutoff, emergency stop and hardware-team approval remain pending. Compile-time gates refuse unverified physical outputs. Never connect 12 V to ESP32 logic or shed MCU power.

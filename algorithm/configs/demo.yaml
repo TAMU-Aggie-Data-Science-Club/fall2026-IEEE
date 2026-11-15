@@ -1,0 +1,11 @@
+{
+  "prediction_persistence": 2,
+  "cooldown_s": 10,
+  "ack_timeout_s": 1,
+  "max_attempts": 3,
+  "stale_s": 5,
+  "min_off_s": 60,
+  "restore_hysteresis_c": 5,
+  "baud": 115200,
+  "monitor_only": true
+}
