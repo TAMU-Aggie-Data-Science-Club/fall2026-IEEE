@@ -44,12 +44,13 @@ class Policy:
                 self.state[rid] = "FAULT"; self.alarms.append(f"contradictory relay state: {rid}")
             return None
         if self.state[rid] == "FAULT": return None
+        if not forecast.actuation_eligible or forecast.hardware_domain != "demo_rc": return None
         self.state[rid] = "ON" if rail["enabled"] else "SHED_CONFIRMED"
         valid = rail["sensor_valid"] and rail["hotspot_c"] is not None
         if not valid:
             self.count[rid] = 0; self.alarms.append(f"sensor fault: {rid}"); return None
         predicted = forecast.predicted_hotspot_plus_300s_c
-        trigger = (forecast.data_quality == "good" and predicted is not None and predicted >= config.warning)
+        trigger = (forecast.actuation_eligible and forecast.hardware_domain == "demo_rc" and forecast.data_quality == "good" and predicted is not None and predicted >= config.warning)
         measured = rail["hotspot_c"] >= config.warning
         self.count[rid] = self.count[rid] + 1 if trigger or measured else 0
         if not config.shed_allowed:

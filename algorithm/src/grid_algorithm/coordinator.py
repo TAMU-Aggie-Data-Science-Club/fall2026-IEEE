@@ -4,7 +4,7 @@ from .contracts import to_long
 
 
 class Coordinator:
-    def __init__(self, config, predictor, policy, transport=None, log=None, passive=False, stale_s=5):
+    def __init__(self, config, predictor, policy, transport=None, log=None, passive=False, stale_s=5, hardware_domain="demo_rc"):
         self.config, self.predictor, self.policy = config, predictor, policy
         self.transport, self.log, self.passive, self.stale_s = transport, log, passive, stale_s
         lookback = predictor.metadata.get("hyperparameters", {}).get("lookback_s", 300)
@@ -12,11 +12,15 @@ class Coordinator:
         self.last_seq = self.last_uptime = self.last_received = None
         self.errors = []; self.commands = []; self.acks = []; self.forecasts = {}
         self.armed_session = True
+        self.hardware_domain = hardware_domain
 
     def record(self, kind, payload, now):
         if self.log: self.log.write(kind, payload, now)
 
     def send(self, command, now):
+        if getattr(self.predictor, "hardware_domain", "demo_rc") != self.hardware_domain:
+            self.record("fault", {"message": "model/hardware domain mismatch: actuation blocked"}, now)
+            return
         self.commands.append(command); self.record("command", command, now)
         try:
             ack = self.transport.send(command)
@@ -65,7 +69,8 @@ class Coordinator:
             if faulted: forecast.data_quality = "invalid"
             self.forecasts[rid] = forecast.to_dict()
             self.record("observation", observation, now); self.record("forecast", forecast.to_dict(), now)
-            if not self.passive and self.armed_session and not faulted:
+            compatible = forecast.hardware_domain == self.hardware_domain and forecast.actuation_eligible
+            if not self.passive and self.armed_session and not faulted and compatible:
                 command = self.policy.decide(rail, forecast, now)
                 if command: self.send(command, now)
             elif not rail["sensor_valid"]:

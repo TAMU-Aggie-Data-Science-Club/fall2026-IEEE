@@ -1,5 +1,6 @@
 """Mutable plant and controller-local interlocks, independent of training labels."""
 import random
+import math
 from collections import OrderedDict
 from grid_model.thermal_rc import temperature
 from .contracts import TelemetryFrame
@@ -10,7 +11,9 @@ class Plant:
         self.config, self.scenario = config, scenario
         self.random = random.Random(seed)
         self.time = 0.
-        self.temps = {r: 35. for r in config}
+        self.temps = {r: 34. + i*1.25 for i,r in enumerate(config)}
+        self.resistance = {r: 2.9 + i*.3 for i,r in enumerate(config)}
+        self.tau = {r: 280. + i*40 for i,r in enumerate(config)}
         self.enabled = {r: True for r in config}
         self.off_since = {r: -1e9 for r in config}
         self.last_command = None
@@ -20,10 +23,14 @@ class Plant:
 
     def current(self, rid):
         if not self.enabled[rid]: return 0.
-        if rid == "rail_1" or self.scenario == "normal": return .6
-        if self.scenario == "ramp": return min(2., .6 + self.time / 500)
+        index = list(self.config).index(rid)
+        baseline = .52 + .055*index
+        ripple = .015*math.sin(self.time/(31+index*7)+index)
+        if rid == "rail_1" or self.scenario == "normal": return baseline+ripple
+        if self.scenario == "ramp": return min(2.1-index*.08, baseline + self.time / (440+index*70))+ripple
         if self.scenario == "abrupt_overload": return 2. if self.time >= 100 and rid == "rail_2" else .6
-        return 2. if self.time >= 100 else .6
+        onset = 80 if rid == "rail_2" else 140
+        return (2.05 if rid == "rail_2" else 1.85)+ripple if self.time >= onset else baseline+ripple
 
     def sample(self):
         self.seq = (self.seq + 1) % 2**32
@@ -38,7 +45,7 @@ class Plant:
         if dt <= 0: raise ValueError("positive time step required")
         bus = 12. - .025 * sum(self.current(r) for r in self.config)
         for r in self.config:
-            self.temps[r] = temperature(self.temps[r], self.ambient, bus * self.current(r), dt)
+            self.temps[r] = temperature(self.temps[r], self.ambient, bus * self.current(r), dt, self.resistance[r], self.tau[r])
         self.time += dt
 
 

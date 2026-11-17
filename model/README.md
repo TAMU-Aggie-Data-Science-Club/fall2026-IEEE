@@ -72,7 +72,20 @@ This is a **synthetic proof of concept**, not IEEE-endorsed or calibrated to a
 transformer. The attached PDFs describe C57.91 ambitions and older MQTT/CT-clamp
 proposals; [ENTROPY_AGENTS.md](../ENTROPY_AGENTS.md) supersedes those with the DC
 emulator and wired two-ESP32 topology. CT clamps alone do not measure DC.
-IEEE C57.91 equations are deliberately not implemented without verified standard
-assumptions and transformer ratings. Alliander's optional transformer thermal
-model is an IEC 60076-7 comparison, not IEEE C57.91; it is not a dependency or
-claimed result here. The shared URL exposed no readable conversation text.
+The corrected architecture now includes independent IEEE C57.91-2011 conventional
+thermal/aging calculations and the actual optional Alliander IEC 60076-7 library.
+See [PHYSICS.md](PHYSICS.md) for equations, sources, release/API, units and reference
+tests. These are oil-transformer analysis models; they are never assigned to DC
+demo rails. The shared URL exposed no readable conversation text.
+
+Install oil physics with `python -m pip install -e './model[physics,dev]'`.
+`python -m grid_model compare-physics` runs compatible transformer scenarios;
+`python -m grid_model compare-detection` separately evaluates the preserved
+RC-domain Ridge, persistence, nominal/fitted RC and validation-selected warnings.
+The original `model/artifacts/ridge-demo/` is retained without overwriting its
+weights, metadata or historical metrics. New comparisons go to `model/reports/`.
+
+`python -m grid_model calibrate-rc` fits per-rail R/tau on training observations
+only and records source provenance. Current calibration is synthetic, with
+`physical_calibration_verified=false`. Better short-step fit does not guarantee
+better threshold recall; compare held-out forecasting and detection separately.

@@ -10,6 +10,8 @@ class Predictor:
     def __init__(self, artifact=None, model="rc", enforce_selection=True):
         self.kind, self.model, self.metadata = model, None, {"version": "0.1.0"}
         self.fallback_reason = None
+        self.hardware_domain = "demo_rc"
+        self.rc_calibration = None
         if artifact:
             try:
                 path = Path(artifact)
@@ -67,7 +69,15 @@ class Predictor:
                 return result(float(observed), float(observed), quality="good")
             power = last["rail_voltage_v"] * last["rail_current_a"] if last["rail_enabled"] else 0
             ambient = last["ambient_temp_c"]
-            return result(temperature(observed, ambient, power, 60), temperature(observed, ambient, power, 300),
-                          eta(observed, ambient, power), "good")
+            params = (self.rc_calibration or {}).get("rails", {}).get(request.rail_id, {})
+            options = dict(resistance=params.get("resistance_c_per_w", 3.2), tau=params.get("tau_s", 300.))
+            response = result(temperature(observed, ambient, power, 60, **options), temperature(observed, ambient, power, 300, **options),
+                              eta(observed, ambient, power, **options), "good")
+            response.eta_to_threshold_s = response.eta_to_80c_s
+            if self.kind == "calibrated_rc" and not self.rc_calibration:
+                response.limitation = "nominal RC parameters; calibration file not supplied; physical calibration pending"
+            elif self.rc_calibration:
+                response.limitation = self.rc_calibration["provenance"]
+            return response
         except (ValueError, KeyError, TypeError):
             return result()

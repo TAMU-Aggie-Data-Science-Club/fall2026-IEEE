@@ -4,6 +4,20 @@ Laptop forecasting → deterministic policy → ESP32 B bridge → ESP32 A local
 interlocks → independently switched 12 V demo branch. Never shed MCU power.
 All supplied fixtures and virtual runs are **SYNTHETIC / DEMO ONLY**.
 
+The architecture correction adds oil-transformer physics in the model team and
+explicit model/hardware domain gating here. The dashboard selects IEEE C57.91,
+Alliander IEC, calibrated RC or the preserved Ridge benchmark. Oil models operate
+only in **Oil-transformer analysis**, never on demo telemetry or relay controls.
+The original three-branch pipeline and all local safety interlocks remain.
+See [model/PHYSICS.md](../model/PHYSICS.md) and the engineering report.
+
+The rig now has independent initial temperatures, currents, overload onset times,
+load ripple, thermal resistance and time constants per branch. Shared bus droop
+is retained. Fitted RC calibration can be supplied with `--model calibrated_rc
+--calibration model/artifacts/rc-calibration/calibration.json`; current fits are
+synthetic, not verified physical calibration. Historical validation results from
+the earlier identical-rail emulator remain in VALIDATION.md as a dated record.
+
 ## Run from repository root (PowerShell or Unix)
 
 ```sh

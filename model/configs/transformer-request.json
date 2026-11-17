@@ -1,0 +1,10 @@
+{
+  "rail_id": "transformer_example",
+  "hardware_domain": "oil_transformer",
+  "forecast_horizon_s": 300,
+  "current_t_s": 60,
+  "observations": [
+    {"t_s": 0, "load_factor": 0.7, "ambient_temp_c": 30.0, "sensor_valid": true},
+    {"t_s": 60, "load_factor": 1.5, "ambient_temp_c": 30.0, "sensor_valid": true}
+  ]
+}

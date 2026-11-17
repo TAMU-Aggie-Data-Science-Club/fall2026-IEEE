@@ -1,0 +1,19 @@
+{
+  "rated_current_a": 1500.0,
+  "rated_power_kva": 1000.0,
+  "load_loss_w": 5000.0,
+  "no_load_loss_w": 1000.0,
+  "rated_top_oil_rise_c": 55.0,
+  "rated_hotspot_gradient_c": 25.0,
+  "oil_time_constant_s": 10800.0,
+  "winding_time_constant_s": 300.0,
+  "oil_exponent_n": 0.8,
+  "winding_exponent_m": 0.8,
+  "cooling": "ONAN",
+  "iec_k11": 1.0,
+  "iec_k21": 1,
+  "iec_k22": 1,
+  "threshold_c": 110.0,
+  "normal_insulation_life_h": null,
+  "provenance": "illustrative synthetic transformer, not hardware calibration"
+}

@@ -12,14 +12,16 @@ from .transport import FakeBridge, SerialTransport
 from .replay import replay
 
 
-def simulate(config, duration=1800, scenario="dual_overload", artifact=None, seed=42, log=None, speed=0, settings=None):
+def simulate(config, duration=1800, scenario="dual_overload", artifact=None, seed=42, log=None, speed=0, settings=None, model=None, calibration=None):
     settings = settings or {}
     plant = Plant(config, scenario, seed)
     controller = RigController(plant, min_off_s=settings.get("min_off_s", 60), hysteresis=settings.get("restore_hysteresis_c", 5))
     bridge = FakeBridge(controller)
     policy = Policy(config, persistence=settings.get("prediction_persistence", 2), cooldown_s=settings.get("cooldown_s", 10),
                     ack_timeout_s=settings.get("ack_timeout_s", 1), max_attempts=settings.get("max_attempts", 3))
-    app = Coordinator(config, Predictor(artifact), policy, bridge, log, stale_s=settings.get("stale_s", 5))
+    from grid_model.selection import select_model
+    predictor = select_model(model,artifact,calibration=calibration) if model else Predictor(artifact)
+    app = Coordinator(config, predictor, policy, bridge, log, stale_s=settings.get("stale_s", 5))
     peaks = dict(plant.temps); at_shed = {}; cooling = {}
     for second in range(duration):
         frame = bridge.telemetry()
@@ -51,6 +53,8 @@ def main():
     p.add_argument("--scenario", choices=["normal", "ramp", "abrupt_overload", "hot_ambient", "dual_overload"], default="dual_overload")
     p.add_argument("--duration-s", type=int, default=1800); p.add_argument("--speed", type=float, default=0)
     p.add_argument("--artifact"); p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--model", choices=["calibrated_rc", "rc", "ridge"], help="oil-transformer models are analysis-only, never actuate demo rails")
+    p.add_argument("--calibration")
     p.add_argument("--log", default="algorithm/runs/demo.sqlite")
     p = sub.add_parser("replay"); p.add_argument("--data", default="algorithm/fixtures/esp32_telemetry_replay.csv")
     p.add_argument("--speed", type=float, default=0); p.add_argument("--limit", type=int); p.add_argument("--start-offset", type=float, default=0)
@@ -71,7 +75,7 @@ def main():
                 raise ValueError(f"{name} must be positive")
         log = EventLog(args.log)
         if args.command == "simulate":
-            result = simulate(config, args.duration_s, args.scenario, args.artifact, args.seed, log, args.speed, settings)
+            result = simulate(config, args.duration_s, args.scenario, args.artifact, args.seed, log, args.speed, settings, args.model, args.calibration)
         elif args.command == "replay":
             app = Coordinator(config, Predictor(), Policy(config), log=log, passive=True)
             count = 0; transitions = []; prior = {}; previous_time = None

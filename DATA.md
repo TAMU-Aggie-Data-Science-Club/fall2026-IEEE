@@ -34,6 +34,7 @@ Document every source here as you adopt it. Replace these placeholders.
 |--------|--------------|---------------|---------|-------------|-------|
 | Supplied IEEE × ADSC synthetic training trajectories | User-provided `IEEE_ADSC_Heat_Grid_Synthetic_Data.zip` | Manually unpack two CSVs into Git-ignored `model/data/` | TBD: redistribution terms not supplied | Synthetic; no reported personal data | 194,400 rows, 36 unmitigated RC scenarios; train/val/test 25/5/6. Local implementation requested by owner; confirm license before redistribution. |
 | Supplied synthetic telemetry/control fixtures | Same user-provided package; `algorithm/fixtures/README_data_contract.md` | Existing `algorithm/fixtures/` CSVs; no network fetch | TBD: confirm redistribution permission | Synthetic; no reported personal data | 2,993 packets, three scripted commands/ACKs and rail configuration; not model accuracy ground truth. |
+| Generated transformer comparison scenarios | Local `grid_model.physics_comparison` with explicit `model/configs/transformer.json` | Reproduce using `python -m grid_model compare-physics`; summaries/artifacts in ignored `model/reports/` | Project-generated inputs; Alliander dependency MPL-2.0 | Synthetic; no personal or utility data | User-requested architecture correction: 18 transformer scenarios, train/val/test 10/4/4. IEEE-generated and IEC-generated references are separate consistency experiments, NOT physical transformer ground truth or the original RC fixtures. |
 
 ## IEEE × ADSC local inputs
 

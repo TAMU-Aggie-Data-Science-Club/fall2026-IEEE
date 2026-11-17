@@ -1,5 +1,9 @@
 # Software validation record
 
+This is the original 2026-11-14 implementation record. The corrected physics,
+independent rail simulator and current tests are documented in
+[ENGINEERING_REPORT.md](ENGINEERING_REPORT.md).
+
 Validated locally on 2026-11-14, Python 3.13 CPU, using the supplied original
 synthetic fixtures. No commits, pushes, flashing or physical actuation were
 performed. Hardware commissioning remains pending.

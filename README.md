@@ -2,6 +2,18 @@
 
 A laptop forecasts hot-spot proxy temperatures and requests low-priority **12 V demo branch** shedding through ESP32 B (bridge) and ESP32 A (local interlocks). The full loop runs without hardware. All supplied fixtures and virtual results are **synthetic proof of concept**, not IEEE-endorsed or hardware-calibrated protection.
 
+Oil-transformer analysis now uses **IEEE C57.91-2011 conventional physics** or
+the actual **Alliander IEC 60076-7** library. RC describes the separate DC rig;
+Ridge remains the preserved baseline. [Physics documentation](model/PHYSICS.md)
+defines equations, parameters, reference tests and domain/actuation limits.
+
+```sh
+python -m pip install -e './model[physics,ml,dev]' -e './algorithm[ui,dev]'
+python -m grid_model compare-physics
+python -m grid_model compare-detection
+python -m grid_model calibrate-rc
+```
+
 ## Setup and one-command demo
 
 From repository root, in Windows PowerShell or Unix:
@@ -25,7 +37,7 @@ Copy the supplied synthetic package into `model/data/` and `algorithm/fixtures/`
 
 ```sh
 python -m grid_model inspect
-python -m grid_model train --model ridge --output model/artifacts/ridge-demo
+python -m grid_model train --model ridge --output model/artifacts/ridge-retrained
 python -m grid_model evaluate --artifact model/artifacts/ridge-demo --split test
 python -m grid_algorithm simulate --artifact model/artifacts/ridge-demo --duration-s 1800
 python -m grid_algorithm replay --speed 0 --dry-run
@@ -52,6 +64,10 @@ algorithm/   NDJSON, replay/live transport, plant/controller/bridge, policy,
 closed-loop evidence and dry-run build sizes. `python algorithm/scripts/smoke.py`
 runs an assertion-checked offline demo. Install PlatformIO with
 `python -m pip install platformio` if `pio` is unavailable.
+
+The latest [engineering report](algorithm/ENGINEERING_REPORT.md) covers the IEEE/IEC
+architecture correction, 39.4% validation-recall diagnosis, separate detection
+results, independent rail profiles and current hardware limits.
 
 ## Hardware remains disabled
 
