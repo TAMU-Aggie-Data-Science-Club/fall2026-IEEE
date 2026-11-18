@@ -3,13 +3,30 @@
 #include "hardware_config.h"
 #include "../../common/protocol.h"
 #include "../../common/espnow_transport.h"
+//#error VERIFY_THIS_IS_THE_CORRECT_MAIN_CPP
 
 EspNowTransport radio(gridradio::kBridge);
 LineReader upstream;
 uint32_t heartbeat = 0;
+// void setup() {
+//   // Serial.begin(115200);
+//   // radio.begin(); radio.status(Serial);
+//   // Serial.println("ESP32 is active");
+  
+// }
 void setup() {
-  Serial.begin(115200);
-  radio.begin(); radio.status(Serial);
+    Serial.begin(115200);
+    delay(1500);
+
+    Serial.println("STEP 1: ESP32 started");
+
+    Serial.println("STEP 2: Initializing ESP-NOW");
+    radio.begin();
+
+    Serial.println("STEP 3: ESP-NOW initialization returned");
+    radio.status(Serial);
+
+    Serial.println("STEP 4: ESP32 bridge is active!");
 }
 void loop() {
   upstream.poll(Serial, [](JsonDocument &doc, const char *body) {
