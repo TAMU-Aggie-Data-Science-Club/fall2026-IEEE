@@ -2,6 +2,23 @@
 
 A laptop forecasts hot-spot proxy temperatures and requests low-priority **12 V demo branch** shedding through ESP32 B (bridge) and ESP32 A (local interlocks). The full loop runs without hardware. All supplied fixtures and virtual results are **synthetic proof of concept**, not IEEE-endorsed or hardware-calibrated protection.
 
+The selected two-board link is now **USB serial + ESP-NOW unicast**:
+
+```text
+Laptop models/policy/dashboard/logs ↔ USB 115200 ↔ ESP32 B bridge
+                                           ↕ ESP-NOW (no router)
+                              independently powered ESP32 A controller
+                                           ↕ local interlocks
+                             12 V branches: rail_1 protected, rail_2/3 eligible
+```
+
+Actual wireless communication can use simulated sensors with **zero physical
+relay outputs**. Local peer MACs/channel/optional encryption keys must be
+provisioned; default builds print their own actual MAC and cannot transmit to a
+missing peer. See the [complete firmware setup guide](algorithm/firmware/README.md)
+for separate role builds/uploads, MAC pairing, the guarded synthetic command
+test and troubleshooting. Live Python remains monitor-only.
+
 Oil-transformer analysis now uses **IEEE C57.91-2011 conventional physics** or
 the actual **Alliander IEC 60076-7** library. RC describes the separate DC rig;
 Ridge remains the preserved baseline. [Physics documentation](model/PHYSICS.md)
@@ -72,8 +89,9 @@ results, independent rail profiles and current hardware limits.
 ## Hardware remains disabled
 
 ```sh
-pio run -d algorithm/firmware/rig_controller
-pio run -d algorithm/firmware/bridge
+pio run -d algorithm/firmware/rig_controller -e controller_esp32dev
+pio run -d algorithm/firmware/bridge -e bridge_esp32dev
+python -m grid_algorithm link-check --port YOUR_ESP32_B_PORT --duration-s 10
 python -m grid_algorithm live --port YOUR_ESP32_B_PORT --baud 115200 --monitor-only
 ```
 

@@ -10,6 +10,7 @@ class Coordinator:
         lookback = predictor.metadata.get("hyperparameters", {}).get("lookback_s", 300)
         self.histories = {r: deque(maxlen=lookback + 1) for r in config}
         self.last_seq = self.last_uptime = self.last_received = None
+        self.last_controller_session = None
         self.errors = []; self.commands = []; self.acks = []; self.forecasts = {}
         self.armed_session = True
         self.hardware_domain = hardware_domain
@@ -40,15 +41,18 @@ class Coordinator:
             self.record("fault", {"message": self.errors[-1]}, now)
             return False
         seq, uptime = frame["seq"], frame["uptime_ms"]
+        controller_session = frame.get("controller_session")
         if self.last_seq is not None:
             delta = (seq - self.last_seq) % 2**32
             rollover = self.last_uptime > 0xf0000000 and uptime < 0x10000000
-            reboot = uptime < self.last_uptime and not rollover
+            session_changed = (controller_session is not None and self.last_controller_session is not None and controller_session != self.last_controller_session)
+            reboot = session_changed or (uptime < self.last_uptime and not rollover)
             if reboot:
                 self.policy.reset_session()
                 for h in self.histories.values(): h.clear()
                 self.record("reboot", {"previous_uptime": self.last_uptime}, now)
                 self.last_seq, self.last_uptime, self.last_received = seq, uptime, now
+                self.last_controller_session = controller_session
                 self.armed_session = False
                 return False
             if delta == 0 or delta > 2**31:
@@ -57,6 +61,7 @@ class Coordinator:
         if self.last_received is not None and now <= self.last_received:
             self.errors.append("nonmonotonic arrival"); return False
         self.last_seq, self.last_uptime, self.last_received = seq, uptime, now
+        self.last_controller_session = controller_session
         ids = {r["id"] for r in frame["rails"]}
         if ids != set(self.config):
             self.errors.append("missing/unconfigured rails"); self.record("fault", {"message": self.errors[-1]}, now)

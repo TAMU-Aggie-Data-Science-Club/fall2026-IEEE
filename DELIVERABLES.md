@@ -16,6 +16,7 @@
 | 5 | Dashboard and QA | Local dashboard, supervised virtual restore, SQLite/CSV, fault tests and reproducible handoff. | Both software teams | Checkpoint 5 |
 | 6 | Physical commissioning | Boards/pins/calibration/polarity/ratings/thresholds, independent cutoff and supervised tests; separated because no hardware safety settings are approved. | Hardware lead + faculty | Pending approval |
 | 7 | Transformer physics and detection correction | Implement source-verified IEEE C57.91-2011 and real Alliander IEC analysis; retain RC/Ridge rig benchmark, separate crossing/temperature metrics, independent rail profiles and model-domain gates to correct the original baseline-first architecture. | Both software teams | Software verification; physical validation pending |
+| 8 | ESP-NOW two-board integration | Replace the provisional UART path with USB + ESP-NOW, preserve monitor-only/domain gates, decouple mock sensors from radio, test bounded fragmentation and provide independent flashing/pairing handoff so both teams can bench-test without relays. | Algorithm + embedded | Migration software validation; hardware pairing pending |
 
 ## Timeline (rough)
 
@@ -25,6 +26,8 @@ Sequence: contract -> closed-loop demo -> model comparisons -> dry-run firmware
 Later:    physical commissioning after human safety approval
 Revision: source-verified oil physics + domain-separated comparisons/detection,
           independent rig profiles and software regression verification
+Wireless: bounded ESP-NOW + two independent safe firmware targets -> operator
+          peer provisioning/bench verification -> approved physical commissioning
 ```
 
 ## Working agreements

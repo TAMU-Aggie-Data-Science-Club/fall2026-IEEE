@@ -39,3 +39,7 @@ algorithm/runs/*
 .pio/
 .test-tools/
 pytest-cache-files-*/
+
+# Device pairing and encryption secrets are provisioned locally.
+algorithm/firmware/**/include/peer_config.h
+.native-build/

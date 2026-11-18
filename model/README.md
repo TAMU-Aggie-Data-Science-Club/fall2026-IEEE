@@ -71,7 +71,9 @@ neural weights may be rejected. Load only trusted local joblib artifacts.
 This is a **synthetic proof of concept**, not IEEE-endorsed or calibrated to a
 transformer. The attached PDFs describe C57.91 ambitions and older MQTT/CT-clamp
 proposals; [ENTROPY_AGENTS.md](../ENTROPY_AGENTS.md) supersedes those with the DC
-emulator and wired two-ESP32 topology. CT clamps alone do not measure DC.
+emulator; the current two-ESP32 transport is USB + ESP-NOW, superseding the older
+wired proposal. CT clamps alone do not measure DC. Model code/parameters are
+unchanged by that transport migration.
 The corrected architecture now includes independent IEEE C57.91-2011 conventional
 thermal/aging calculations and the actual optional Alliander IEC 60076-7 library.
 See [PHYSICS.md](PHYSICS.md) for equations, sources, release/API, units and reference

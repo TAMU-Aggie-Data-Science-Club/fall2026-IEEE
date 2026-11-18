@@ -1,5 +1,7 @@
 # Codex implementation mandate — IEEE × ADSC Extreme Heat Grid Stress Predictor
 
+> **Transport update (2026-11-17): USB serial + ESP-NOW unicast is the selected two-board architecture.** Sensor simulation, radio communication and physical relay output enable are independent. Default firmware enables radio and simulated sensors with physical outputs disabled. Follow `algorithm/firmware/README.md` for bounded fragmentation, peer provisioning and safe bench operation.
+
 > **Read this entire file. Implement the project, not just a plan.** This file is written as repository-level instructions for Codex. Create and maintain **two primary software folders in this same repository: `model/` and `algorithm/`**. The project must run end-to-end in simulation without physical ESP32s and must have a clearly gated, documented hardware path for two ESP32 devices. Do not stop after scaffolding or pseudocode.
 
 ## 0. Operating rules for Codex
@@ -33,7 +35,7 @@
                          | sensors: voltage/current/temperature + ambient
                   [ESP32 A: esp32_rig_01]
                    sensor sampling + relay outputs + LOCAL interlocks
-                             | UART TX/RX + shared 3.3 V logic GND
+                             | ESP-NOW unicast (no inter-board UART)
                   [ESP32 B: esp32_bridge_01]
                    transparent, validated bidirectional message bridge
                              | USB serial (115200 8N1 proposed)
@@ -45,7 +47,7 @@
 
 **Critical electrical distinction:** The term *rail* in the synthetic CSVs means an independently switched **12 V load branch**, **NOT** the ESP32's 3.3 V/5 V logic power rail. Never shed MCU power as a model action. The hardware team must approve supply, fuses, current ratings, MOSFET/relay topology, sensor placements and thermal shutdown independently. USB power to ESP32 B does not imply its regulator can power the 12 V rig or ESP32 A.
 
-**Reference material supplied by the user:** `proj proposal.pdf`, `Meeting_ IEEE × ADSC (1).pdf`, `Extreme Heat Grid Stress Predictor.pdf`, the synthetic CSVs listed below, and a shared conversation link (`https://chatgpt.com/share/6af927c4-46e4-83e9-8c22-390df8aa772a`). The shared URL exposed no readable conversation text to the assistant generating this mandate; **do not invent its contents**. If Codex can actually open it, review for additional requirements, record them, and reconcile them with this spec. The PDFs describe IEEE C57.91 thermal behavior, mock heating element, early overheating prediction, low-priority load shedding, ESP32s, and an eventual model/dashboard; this file specifies the newer, explicit two-ESP32 serial topology chosen in this conversation.
+**Reference material supplied by the user:** `proj proposal.pdf`, `Meeting_ IEEE × ADSC (1).pdf`, `Extreme Heat Grid Stress Predictor.pdf`, the synthetic CSVs listed below, and a shared conversation link (`https://chatgpt.com/share/6af927c4-46e4-83e9-8c22-390df8aa772a`). The shared URL exposed no readable conversation text to the assistant generating this mandate; **do not invent its contents**. If Codex can actually open it, review for additional requirements, record them, and reconcile them with this spec. The PDFs describe IEEE C57.91 thermal behavior, mock heating element, early overheating prediction, low-priority load shedding, ESP32s, and an eventual model/dashboard; this file specifies the newer, explicit two-ESP32 topology; the 2026-11-17 migration selects USB serial + ESP-NOW and supersedes the provisional inter-board UART.
 
 ## 2. Nonnegotiable synthetic-data facts (do not change silently)
 
@@ -171,7 +173,7 @@ repo-root/
     │   │   ├── platformio.ini
     │   │   ├── include/             # hardware_config.h + protocol/safety types
     │   │   └── src/main.cpp
-    │   └── bridge/                 # ESP32 B — USB serial <-> 3.3 V UART
+    │   └── bridge/                 # ESP32 B — USB serial <-> ESP-NOW unicast
     │       ├── platformio.ini
     │       ├── include/
     │       └── src/main.cpp
@@ -189,7 +191,7 @@ Create other small files as needed (e.g., `conftest.py`, C++ headers, CI workflo
 
 ## 4. Canonical versioned interface — both teams MUST implement the same contract
 
-Use **newline-delimited JSON (NDJSON), one UTF-8 JSON object per line**, on both links (laptop ↔ ESP32 B ↔ ESP32 A) at a configurable 115200 baud, 8N1. Limit line length (e.g., 2048 bytes), validate before routing, define schema version `v:1`, and use `\n` framing. Do not mix firmware debug logs with machine-readable USB serial frames: log diagnostics to a separate sink or as explicit `type:"diagnostic"` messages that the parser can safely ignore. Avoid fragile `readStringUntil` calls that block the control loop indefinitely.
+Use **newline-delimited JSON (NDJSON), one UTF-8 JSON object per line**, on laptop ↔ ESP32 B USB serial at configurable 115200 baud, 8N1. Preserve each complete canonical NDJSON message inside bounded ESP-NOW fragmentation between B and A: ≤250-byte packets, explicit unicast peer roles/boot sessions, CRC32, bounded reassembly and expiry. The laptop does not process wireless fragments. Limit line length (e.g., 2048 bytes), validate before routing, define schema version `v:1`, and use `\n` framing. Do not mix firmware debug logs with machine-readable USB serial frames: log diagnostics to a separate sink or as explicit `type:"diagnostic"` messages that the parser can safely ignore. Avoid fragile `readStringUntil` calls that block the control loop indefinitely.
 
 **Telemetry (ESP32 A → bridge → laptop):**
 
@@ -261,7 +263,7 @@ Maintain arrival time in the laptop's **monotonic clock** for freshness/watchdog
 
 **Mode 2: truly closed-loop software simulation (primary acceptance test):** Implement a mutable 3-rail mock thermal plant with independent current/temperature states and configurable load profiles (normal, ramp, abrupt overload, hot ambient, dual overload), bus voltage droop, sensor quantization, occasional noise/faults, and **real state changes when simulator receives command requests**. A simulator ACK comes from an emulated ESP32 A and its next samples must show rail voltage/current near zero followed by delayed cooling; **do not falsely show cooling immediately**. Use configured thresholds and safe electric/thermal bounds. Seeded virtual time means deterministic runs, no physical devices. This mode tests the complete loop: sensor → model → policy → command → bridge → rig actuator → ACK → cooled sensor feedback.
 
-**Mode 3: physical USB serial:** Connect the laptop to **ESP32 B** via a user-selected port (e.g., `COMx` on Windows, `/dev/ttyUSBx` on Linux), never hardcode a previous project's COM4. ESP32 B bridges the verified messages to ESP32 A over wired 3.3 V UART (unless the hardware team later explicitly chooses ESP-NOW). Do not silently switch to Wi-Fi or MQTT; they are optional future adapters. Use reconnect/backoff, framing/CRC or robust parse checks, ACK timeout, and a bounded command queue. The default physical mode is **monitor only / no actuation**; require explicit operator arming, correctly configured GPIO and physically verified safety interlocks before any relay actuation.
+**Mode 3: physical USB serial:** Connect the laptop to **ESP32 B** via a user-selected port (e.g., `COMx` on Windows, `/dev/ttyUSBx` on Linux), never hardcode a previous project's COM4. ESP32 B bridges complete verified messages to ESP32 A over the explicitly selected ESP-NOW unicast transport. No router or Internet connection is required; MQTT/cloud services remain optional future adapters. Use reconnect/backoff, framing/CRC or robust parse checks, ACK timeout, and a bounded command queue. The default physical mode is **monitor only / no actuation**; require explicit operator arming, correctly configured GPIO and physically verified safety interlocks before any relay actuation.
 
 ### 6.2 Decision policy (deterministic, testable, independent of ML)
 
@@ -281,7 +283,7 @@ Maintain arrival time in the laptop's **monotonic clock** for freshness/watchdog
 
 ## 7. ESP32 firmware — both images must compile; physical output remains gated
 
-Use `PlatformIO` with default dev board id `esp32dev` and Arduino framework; make board configurable without code changes. Only assume generic **ESP32 DevKit** until the hardware team confirms exact boards. The firmware must build even when actual sensor/relay pin mappings are not yet supplied, via a clearly labeled `SIMULATED_IO`/`DRY_RUN` build configuration. Build is not proof of successful flashing or safe hardware operation.
+Use `PlatformIO` with default dev board id `esp32dev` and Arduino framework; make board configurable without code changes. Only assume generic **ESP32 DevKit** until the hardware team confirms exact boards. The firmware must build even when actual sensor/relay pin mappings are not yet supplied, via a clearly labeled independent `SIMULATED_SENSORS=1`, `ENABLE_ESPNOW=1`, `PHYSICAL_OUTPUTS=0` build configuration. Build is not proof of successful flashing or safe hardware operation.
 
 ### ESP32 A: `algorithm/firmware/rig_controller/`
 
@@ -289,22 +291,22 @@ Responsibilities:
 
 1. Sample ambient and per-branch thermal/current/voltage observations near 1 Hz. Implement configurable sensor adapters for **DS18B20**-class 1-Wire temperature and **ACS712 DC-capable** current sensor, with calibration constants/placeholders; never guess the ADC calibration/pin mapping or claim unsupported sensors are physically present. Mock sensor backend must be fully functional for development. Avoid blocking the watchdog during DS18B20 conversion (12-bit conversions can take substantial fractions of a second).
 2. Send versioned telemetry with `seq`, `uptime_ms`, per-rail state, faults. Use an appropriately sized fixed buffer/ArduinoJson or a bounded serializer; enforce the line-length limit.
-3. Receive `SET_RAIL_ENABLED` set-state commands through the inter-ESP UART; validate schema, destination, rail ID, shed permission, arming state, current fault state and manual-restore interlock **locally**. Apply idempotently and reply with precise status and applied state. Keep bounded recent IDs for duplicate ACK behavior.
+3. Receive `SET_RAIL_ENABLED` set-state commands through reassembled and validated ESP-NOW messages; validate schema, destination, rail ID, shed permission, arming state, current fault state and manual-restore interlock **locally**. Apply idempotently and reply with precise status and applied state. Keep bounded recent IDs for duplicate ACK behavior.
 4. Independent local fault protection: overtemperature/overcurrent/dangerously invalid sensor behavior must trigger configured safe shutdown of the **affected eligible load(s)** and/or heater power, without requiring the laptop. Protected loads have a separately defined emergency safety behavior approved by hardware lead; **regular software must not silently override the protected-load policy**. Physical fuses, thermal cutoff and emergency stop are hardware responsibilities, not something firmware alone can guarantee.
-5. Never initialize undefined relay GPIOs in an energized state; relay **active-high vs active-low** must be an explicit hardware setting. In `SIMULATED_IO` firmware no physical GPIO can energize any heater/relay. Physical output path must require a compile-time enable **and** explicit runtime arming.
+5. Never initialize undefined relay GPIOs in an energized state; relay **active-high vs active-low** must be an explicit hardware setting. With `PHYSICAL_OUTPUTS=0`, no physical GPIO can energize any heater/relay, even while actual ESP-NOW communicates simulated sensors. Physical output path must require a compile-time enable **and** explicit runtime arming.
 6. Keep all device behavior nonblocking, with watchdog/heartbeat and a link-failure policy agreed with the hardware team. Use an unambiguous safe initial state for the physical rig; do not auto-reenergize a load after reboot.
 
 ### ESP32 B: `algorithm/firmware/bridge/`
 
 Responsibilities:
 
-1. Connect to laptop USB serial and ESP32 A via an assigned hardware UART. Forward valid telemetry/ACKs upstream and valid command requests downstream, preserving `command_id`, `seq`, rail ID and message body. Optionally attach link metadata in separate status frames; do not modify controller readings.
+1. Connect to laptop USB serial and ESP32 A via ESP-NOW with explicit unicast MAC/channel and optional locally provisioned encryption. Forward valid telemetry/ACKs upstream and valid command requests downstream, preserving `command_id`, `seq`, rail ID and message body. Optionally attach link metadata in separate status frames; do not modify controller readings.
 2. Parse NDJSON without indefinite blocking; limit size, count CRC/JSON failures, avoid forwarding malformed commands, and provide bridge status/heartbeat. Do **not** run ML inference, overwrite requested rail states, or claim to actuate relays.
-3. Allow `SIMULATED_IO` bridge compilation and protocol tests before pins/hardware are confirmed.
+3. Allow actual ESP-NOW bridge compilation and protocol tests independently of simulated sensors and disabled physical outputs. Missing peers must produce explicit diagnostics; never invent MACs or broadcast commands.
 
 ### Hardware integration checklist that MUST remain marked pending until verified
 
-- [ ] Exact ESP32 A/B board variant, UART TX/RX pins on each device, cross-connect TX→RX and **common GND**; **3.3 V logic only**, no 12 V on GPIO.
+- [ ] Exact ESP32 A/B board variant, independently safe supplies, actual station MACs, matching permitted channel and secure peer provisioning. Wireless requires no inter-board UART/ground wire; each local rig still needs approved grounding and **no 12 V on GPIO**.
 - [ ] Exact sensor count and location (temperature, bus voltage, per-rail current), DS18B20 pin and pull-up, current-sensor type and ADC scaling, calibration, supply grounding/noise treatment.
 - [ ] Relay/MOSFET module rating, safe load current, active-high/active-low state, default-off polarity, fuses, independent thermal cutoff, emergency-stop path, load branch priority.
 - [ ] Confirm real temperature thresholds (70°C/80°C in fixture are **not approved operating limits**), ambient conditions, maximum heater surface temperature and safe emergency action.
@@ -366,7 +368,7 @@ Support `--help` for every subcommand. If no sample data exists on disk, do not 
 
 **Checkpoint 1 — repo and interface:** inspect project, put files in expected directories, create packaging/README, typed schema, CSV loaders/adapters and tests. Commit/present file tree and test output (never claim commit if not created).
 
-**Checkpoint 2 — working deterministic demo:** implement synthetic plant, UART-style virtual bridge/controller, controller policy, rail state machine, ACK/retry and CLI. Demonstrate actual cooling following load shed in logs. At this checkpoint the app already works with persistence/RC fallback and no trained neural model.
+**Checkpoint 2 — working deterministic demo:** implement synthetic plant, ESP-NOW-envelope virtual bridge/controller, controller policy, rail state machine, ACK/retry and CLI. Demonstrate actual cooling following load shed in logs. At this checkpoint the app already works with persistence/RC fallback and no trained neural model.
 
 **Checkpoint 3 — complete model team:** train/evaluate persistence, ridge, RC; implement LSTM and mini Transformer training and inferencing; compare on held-out scenarios, save artifacts, expose a stable predictor interface. The model must make **its own** predictions, not replay or copy labels.
 
@@ -376,7 +378,7 @@ Support `--help` for every subcommand. If no sample data exists on disk, do not 
 
 ## 11. Explicit boundaries and decisions for unresolved hardware inputs
 
-- **Decided now:** laptop hosts model; ESP32 B is USB serial bridge; ESP32 A measures/acts; separate 12 V branches; default 3 rails; Python model/algorithm; 1 Hz NDJSON; default 115200 baud; two team directories; mocked first; synthetic CSV schemas; local-only dashboard; no automatic restoration.
+- **Decided now:** laptop hosts model; ESP32 B is USB serial + ESP-NOW bridge; ESP32 A measures/acts; separate 12 V branches; default 3 rails; Python model/algorithm; 1 Hz NDJSON; default 115200 baud; two team directories; mocked first; synthetic CSV schemas; local-only dashboard; no automatic restoration.
 - **Still needs the hardware team:** exact boards and MCU pinouts, relay polarity, current/voltage sensor models and calibration, number of thermal sensors and mapping, heater ratings, whether the ESP32s share ground and how isolated power is provided, approved warning/critical thresholds, power budget, wiring and emergency-stop design, real sensor captures. Keep all hardware-dependent code **configurable and dry-run by default**.
 - **Accuracy/science boundary:** IEEE C57.91 applies to transformer thermal/aging calculations under its specified assumptions; the demonstration's resistor/heater + DS18B20 sensor readings are **not necessarily winding hot-spot temperatures**. Treat the measured probe as a **hot-spot proxy** and validate/fit any mapping. Any model trained solely on the supplied RC-generated values must be labeled **synthetic proof-of-concept**, not validated transformer overload prediction. Use separate datasets/parameters for actual IEEE/IEC comparison.
 - **Security/operations boundary:** do not expose remote relay-control endpoints to the public Internet. Manual restoration is an explicit supervised local operator action, not an unauthenticated HTTP request. Any live relay behavior needs an independently functioning hardware safety cutoff.

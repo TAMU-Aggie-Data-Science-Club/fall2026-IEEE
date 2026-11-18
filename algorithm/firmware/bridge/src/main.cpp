@@ -1,38 +1,31 @@
 #include <Arduino.h>
+#include <WiFi.h> // visible to PlatformIO's dependency finder for the shared radio header
 #include "hardware_config.h"
 #include "../../common/protocol.h"
+#include "../../common/espnow_transport.h"
 
-HardwareSerial rigLink(2);
-LineReader upstream, downstream;
-uint32_t heartbeat = 0, forwarded = 0;
+EspNowTransport radio(gridradio::kBridge);
+LineReader upstream;
+uint32_t heartbeat = 0;
 void setup() {
   Serial.begin(115200);
-#if !SIMULATED_IO
-  rigLink.begin(115200, SERIAL_8N1, UART_RX, UART_TX);
-#endif
+  radio.begin(); radio.status(Serial);
 }
 void loop() {
   upstream.poll(Serial, [](JsonDocument &doc, const char *body) {
     if (doc["type"] != "command" || doc["destination"] != "esp32_rig_01") return;
-#if !SIMULATED_IO
-    rigLink.println(body); ++forwarded;
-#else
-    JsonDocument status; status["v"] = 1; status["type"] = "bridge_status";
-    status["source"] = "esp32_bridge_01"; status["dry_run"] = true;
-    status["command_id"] = doc["command_id"]; status["forwarded"] = false; emit(status, Serial);
-#endif
+    uint8_t bytes[MAX_LINE]; const size_t n=strlen(body);
+    bool queued=false;
+    if (n+1<=MAX_LINE) { memcpy(bytes,body,n); bytes[n]='\n'; queued=radio.sendRaw(bytes,n+1); }
+    JsonDocument status; status["v"]=1; status["type"]="bridge_status"; status["source"]="esp32_bridge_01";
+    status["event"]="command_queued"; status["command_id"]=doc["command_id"]; status["queued"]=queued;
+    status["controller_applied"]=false; emit(status,Serial);
   });
-#if !SIMULATED_IO
-  downstream.poll(rigLink, [](JsonDocument &doc, const char *body) {
-    String type = doc["type"] | "";
-    if ((type == "telemetry" || type == "ack" || type == "diagnostic") && doc["source"] == "esp32_rig_01") { Serial.println(body); ++forwarded; }
+  radio.poll([](JsonDocument &,const char *body,size_t length) {
+    Serial.write(reinterpret_cast<const uint8_t *>(body),length); // preserve exact reassembled NDJSON
   });
-#endif
   if (millis() - heartbeat >= 1000) {
-    heartbeat = millis(); JsonDocument doc; doc["v"] = 1; doc["type"] = "bridge_status";
-    doc["source"] = "esp32_bridge_01"; doc["uptime_ms"] = heartbeat;
-    doc["dry_run"] = bool(SIMULATED_IO); doc["forwarded"] = forwarded;
-    doc["parse_errors"] = upstream.errors + downstream.errors; emit(doc, Serial);
+    heartbeat = millis(); radio.heartbeat(); radio.status(Serial,upstream.errors);
   }
   delay(1);
 }

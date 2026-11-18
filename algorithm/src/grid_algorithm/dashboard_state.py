@@ -11,11 +11,15 @@ def read_events(path, limit=12000):
 
 
 def latest_snapshot(events):
-    result = {"telemetry": None, "forecasts": {}, "state": {}, "faults": []}
+    result = {"telemetry": None, "forecasts": {}, "state": {}, "faults": [],
+              "run_metadata": {}, "serial_status": {}, "bridge_status": {}, "telemetry_utc":None}
     for event in events:
         kind, payload = event["kind"], event["payload"]
-        if kind == "raw_inbound": result["telemetry"] = payload
+        if kind == "raw_inbound" and payload.get("source")=="esp32_rig_01":
+            result["telemetry"] = payload; result["telemetry_utc"] = event["utc"]
         elif kind == "forecast": result["forecasts"][payload["rail_id"]] = payload
         elif kind == "state": result["state"] = payload
         elif kind in {"fault", "error", "reboot"}: result["faults"].append(payload)
+        elif kind in {"run_metadata","serial_status"}: result[kind] = payload
+        elif kind == "bridge_status" and payload.get("event")=="link_status": result["bridge_status"] = payload
     return result

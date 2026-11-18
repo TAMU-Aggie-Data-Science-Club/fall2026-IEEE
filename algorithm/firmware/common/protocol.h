@@ -30,12 +30,34 @@ inline bool validMessage(JsonDocument &d) {
   if (rails.size() < 1 || rails.size() > 16) return false;
   for (size_t i = 0; i < rails.size(); ++i) {
     JsonObject r = rails[i].as<JsonObject>();
-    if (!nonempty(r["id"]) || !r["enabled"].is<bool>() || !r["sensor_valid"].is<bool>() ||
+    if (r.isNull() || !r.containsKey("v") || !r.containsKey("a") || !r.containsKey("hotspot_c") ||
+        !nonempty(r["id"]) || !r["enabled"].is<bool>() || !r["sensor_valid"].is<bool>() ||
         !bounded(r["hotspot_c"], -55, 125) || !bounded(r["a"], 0, 10) || !bounded(r["v"], 0, 30)) return false;
     if (r["sensor_valid"].as<bool>() && (r["hotspot_c"].isNull() || r["a"].isNull() || r["v"].isNull())) return false;
     for (size_t j = 0; j < i; ++j) if (strcmp(r["id"], rails[j]["id"]) == 0) return false;
   }
   return true;
+}
+
+// Parse exactly one complete document. ArduinoJson's stream parser otherwise
+// permits trailing content, which the laptop's strict JSON decoder rejects.
+struct BoundedJsonInput {
+  const uint8_t *bytes; size_t length, position=0;
+  BoundedJsonInput(const uint8_t *p,size_t n):bytes(p),length(n) {}
+  int read() { return position<length?bytes[position++]:-1; }
+  size_t readBytes(char *out,size_t wanted) {
+    size_t n=length-position<wanted?length-position:wanted;
+    memcpy(out,bytes+position,n); position+=n; return n;
+  }
+};
+inline bool parseMessage(JsonDocument &doc,const uint8_t *bytes,size_t length) {
+  if (!length || length>MAX_LINE || memchr(bytes,0,length)) return false;
+  BoundedJsonInput input(bytes,length);
+  if (deserializeJson(doc,input,DeserializationOption::NestingLimit(8))) return false;
+  while (input.position<length) {
+    char c=bytes[input.position++]; if (c!=' ' && c!='\t' && c!='\r' && c!='\n') return false;
+  }
+  return validMessage(doc);
 }
 
 struct LineReader {
@@ -51,12 +73,12 @@ struct LineReader {
         if (!dropping && length) {
           data[length] = 0;
           JsonDocument doc;
-          if (!deserializeJson(doc, data) && validMessage(doc)) handler(doc, data);
+          if (parseMessage(doc,reinterpret_cast<const uint8_t *>(data),length)) handler(doc, data);
           else ++errors;
         }
         length = 0; dropping = false;
       } else if (!dropping && c != '\r') {
-        if (length < MAX_LINE - 2) data[length++] = c;
+        if (length < MAX_LINE - 1) data[length++] = c;
         else { dropping = true; length = 0; ++errors; }
       }
     }
@@ -64,5 +86,5 @@ struct LineReader {
 };
 
 inline void emit(JsonDocument &doc, Stream &out) {
-  if (measureJson(doc) + 1 <= MAX_LINE) { serializeJson(doc, out); out.println(); }
+  if (measureJson(doc) + 1 <= MAX_LINE) { serializeJson(doc, out); out.write('\n'); }
 }

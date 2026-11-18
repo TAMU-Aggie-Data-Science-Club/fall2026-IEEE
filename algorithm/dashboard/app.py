@@ -20,7 +20,7 @@ import json
 
 st.set_page_config(page_title="IEEE x ADSC Heat Grid", layout="wide")
 st.title("Heat Grid • IEEE × ADSC")
-st.warning("SYNTHETIC / DEMO ONLY — not a validated transformer protection system. Physical relay control disabled.")
+st.warning("DEMO / RESEARCH ONLY — laptop live control is monitor-only. Simulated state and radio-send success do not verify physical relay actuation.")
 mode = st.sidebar.radio("Data source", ["Audit log", "Interactive virtual rig", "Oil-transformer analysis"])
 path = st.sidebar.text_input("SQLite audit log", "algorithm/runs/demo.sqlite")
 model_name = st.sidebar.selectbox("Forecast model", ["calibrated_rc", "ridge", "ieee_c57_91", "alliander_iec"])
@@ -92,18 +92,28 @@ def render():
         st.info("Run python -m grid_algorithm simulate, or advance the interactive virtual rig.")
         return
     snapshot = latest_snapshot(events)
+    run = snapshot["run_metadata"]; serial = snapshot["serial_status"]; bridge = snapshot["bridge_status"]
+    st.caption(f"Data source: {run.get('mode','historical/unspecified')} · transport: {run.get('transport','unspecified')}")
+    if serial: st.write(f"Laptop ↔ bridge USB: {'connected' if serial.get('connected') else 'disconnected'} · {serial.get('port')} · monitor only: {serial.get('monitor_only')}")
+    if bridge:
+        st.write(f"Bridge ↔ controller ESP-NOW: initialized={bridge.get('link_initialized')} · peer configured={bridge.get('peer_configured')} · recently heard={bridge.get('peer_recent')} · channel={bridge.get('channel')}")
+        st.caption(f"Bridge station MAC: {bridge.get('local_mac')} · encryption={bridge.get('encrypted')} · reported RX age={bridge.get('last_rx_age_ms')}ms · fragment errors={bridge.get('fragment_errors')} · timeouts={bridge.get('reassembly_timeouts')}")
+        if not bridge.get("peer_recent"): st.error("ESP-NOW peer missing or stale; radio-level delivery is not a controller-applied ACK.")
     frame = snapshot["telemetry"]
     if frame is None: return
+    st.caption(f"Controller sensors: {'simulated' if frame.get('simulated_sensors',run.get('simulated_sensors')) is True else 'reported measurements / mode unverified'} · physical outputs: {'firmware reports enabled; electrical state unverified' if frame.get('physical_outputs_enabled') is True else 'disabled or unverified'}")
     from datetime import datetime, timezone
-    age = (datetime.now(timezone.utc) - datetime.fromisoformat(events[-1]["utc"])).total_seconds()
-    st.caption(f"Last writer activity: {age:.1f}s ago. Completed/replayed logs are historical; device uptime is not UTC.")
-    if age > 5: st.warning("No fresh ingestion in 5s: historical/completed run or disconnected producer.")
+    age = (datetime.now(timezone.utc) - datetime.fromisoformat(snapshot["telemetry_utc"] or events[-1]["utc"])).total_seconds()
+    st.caption(f"Last controller telemetry: {age:.1f}s ago. Link states above are last reported; completed/replayed logs are historical. Device uptime is not UTC.")
+    if age > 5: st.warning("No fresh controller telemetry in 5s: historical/completed run, disconnected producer or failed radio link.")
     if frame["fault_flags"] or snapshot["faults"]:
         st.error(f"Sensor/link faults: {frame['fault_flags']} {snapshot['faults'][-3:]}")
     config = load_config(ROOT / "algorithm/fixtures/rail_config.csv")
     for column, rail in zip(st.columns(len(frame["rails"])), frame["rails"]):
         with column:
             rid = rail["id"]; forecast = snapshot["forecasts"].get(rid, {})
+            if rid not in config:
+                st.error(f"Unconfigured rail {rid}; no control state is trusted."); continue
             st.subheader(rid)
             t = rail["hotspot_c"]
             st.metric("Hot-spot proxy", "unavailable" if t is None else f"{t:.2f} °C")

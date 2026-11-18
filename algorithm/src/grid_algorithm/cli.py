@@ -1,6 +1,7 @@
 import argparse
 import json
 import time
+import sys
 from pathlib import Path
 from .contracts import load_config
 from .policy import Policy
@@ -9,14 +10,16 @@ from .coordinator import Coordinator
 from .persistence import EventLog
 from .simulator import Plant, RigController
 from .transport import FakeBridge, SerialTransport
+from .wireless_sim import WirelessBridge
 from .replay import replay
 
 
 def simulate(config, duration=1800, scenario="dual_overload", artifact=None, seed=42, log=None, speed=0, settings=None, model=None, calibration=None):
     settings = settings or {}
+    if log: log.write("run_metadata",dict(mode="simulation",transport="virtual_espnow",simulated_sensors=True,physical_actuation=False),0)
     plant = Plant(config, scenario, seed)
     controller = RigController(plant, min_off_s=settings.get("min_off_s", 60), hysteresis=settings.get("restore_hysteresis_c", 5))
-    bridge = FakeBridge(controller)
+    bridge = WirelessBridge(controller)
     policy = Policy(config, persistence=settings.get("prediction_persistence", 2), cooldown_s=settings.get("cooldown_s", 10),
                     ack_timeout_s=settings.get("ack_timeout_s", 1), max_attempts=settings.get("max_attempts", 3))
     from grid_model.selection import select_model
@@ -62,6 +65,9 @@ def main():
     p = sub.add_parser("live"); p.add_argument("--port", required=True); p.add_argument("--baud", type=int, default=115200)
     p.add_argument("--monitor-only", action="store_true", default=True); p.add_argument("--duration-s", type=float)
     p.add_argument("--log", default="algorithm/runs/live.sqlite")
+    p = sub.add_parser("link-check",help="read-only USB/ESP-NOW status and telemetry check; never sends commands")
+    p.add_argument("--port",required=True); p.add_argument("--baud",type=int,default=115200)
+    p.add_argument("--duration-s",type=float,default=10); p.add_argument("--log",default="algorithm/runs/link-check.sqlite")
     p = sub.add_parser("export"); p.add_argument("--log", required=True); p.add_argument("--output", required=True)
     args = parser.parse_args()
     log = None
@@ -77,6 +83,7 @@ def main():
         if args.command == "simulate":
             result = simulate(config, args.duration_s, args.scenario, args.artifact, args.seed, log, args.speed, settings, args.model, args.calibration)
         elif args.command == "replay":
+            log.write("run_metadata",dict(mode="replay",transport="recorded_synthetic",simulated_sensors=True,physical_actuation=False),0)
             app = Coordinator(config, Predictor(), Policy(config), log=log, passive=True)
             count = 0; transitions = []; prior = {}; previous_time = None
             for now, frame in replay(args.data, args.limit, args.start_offset):
@@ -94,17 +101,29 @@ def main():
             transport = SerialTransport(args.port, args.baud, monitor_only=True)
             app = Coordinator(config, Predictor(), Policy(config), transport, log, passive=True)
             start = time.monotonic()
+            log.write("run_metadata",dict(mode="live",transport="usb_espnow",monitor_only=True,physical_actuation=False),start)
+            last_status = None; telemetry_count = 0; bridge_status = {}
             try:
                 while args.duration_s is None or time.monotonic() - start < args.duration_s:
                     now = time.monotonic()
                     for frame in transport.receive(now):
-                        if frame["type"] == "telemetry": app.accept(frame, now)
+                        if frame["type"] == "telemetry": app.accept(frame, now); telemetry_count += 1
                         elif frame["type"] == "ack": app.receive_ack(frame, now)
-                        else: app.record("bridge_status", frame, now)
+                        else:
+                            app.record("bridge_status", frame, now)
+                            if frame["type"]=="bridge_status" and frame.get("event")=="link_status": bridge_status=frame
+                    status=transport.status()
+                    status_key=(status["connected"],status["error"],status["framing_errors"])
+                    if status_key!=last_status:
+                        app.record("serial_status",status,now); print(json.dumps({"serial_status":status}),file=sys.stderr)
+                        last_status=status_key
                     app.tick(now); time.sleep(.02)
             except KeyboardInterrupt: pass
-            finally: transport.close()
-            result = {"monitor_only": True, "errors": app.errors}
+            finally:
+                transport.close(); app.record("serial_status",transport.status(),time.monotonic())
+            result = {"monitor_only": True, "errors": app.errors, "telemetry_frames":telemetry_count,
+                      "bridge_status":bridge_status, "radio_recent":bridge_status.get("peer_recent",False),
+                      "physical_verification":False}
         print(json.dumps(result, indent=2))
     except (OSError, ValueError, ImportError) as exc: parser.exit(2, f"error: {exc}\n")
     finally:

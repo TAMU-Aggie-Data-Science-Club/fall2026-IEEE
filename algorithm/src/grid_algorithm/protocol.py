@@ -36,6 +36,8 @@ def validate(m):
         if m.get("status") not in STATUSES or type(m.get("controller_uptime_ms")) is not int or not 0 <= m["controller_uptime_ms"] < 2**32:
             raise ValueError("invalid ACK")
     if kind == "telemetry":
+        if "controller_session" in m and (type(m["controller_session"]) is not int or not 0 < m["controller_session"] < 2**32):
+            raise ValueError("invalid controller boot session")
         for key in ("seq", "uptime_ms"):
             if type(m.get(key)) is not int or not 0 <= m[key] < 2**32:
                 raise ValueError(f"invalid {key}")

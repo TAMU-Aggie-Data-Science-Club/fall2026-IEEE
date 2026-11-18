@@ -1,38 +1,33 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include "hardware_config.h"
 #include "../../common/protocol.h"
-#if !SIMULATED_IO
+#include "../../common/espnow_transport.h"
+#if !SIMULATED_SENSORS
 #include <OneWire.h>
 #include <DallasTemperature.h>
 OneWire oneWire(ONEWIRE_PIN);
 DallasTemperature sensors(&oneWire);
 #endif
 
-HardwareSerial rigLink(2);
-LineReader reader;
+EspNowTransport radio(gridradio::kController);
 const char *ids[] = {"rail_1", "rail_2", "rail_3"};
 bool enabled[3] = {false, false, false};
 bool validSensor[3] = {false, false, false};
 float temp[3] = {35, 35, 35}, current[3] = {0, 0, 0}, voltage[3] = {0, 0, 0};
 float ambient = 26, bus = 12;
 uint32_t offAt[3] = {0, 0, 0};
-uint32_t lastSample = 0, lastCommand = 0, seq = 0;
+uint32_t lastSample = 0, seq = 0, lastStatus = 0;
+bool linkWasHealthy = false;
 String lastId;
 bool armed = false;
 struct Remember { String id, body; int rail = -1; bool enabled = false; };
 Remember recent[32]; size_t nextRecent = 0;
 
-Stream &link() {
-#if SIMULATED_IO
-  return Serial; // Direct protocol bench test; no UART GPIO touched.
-#else
-  return rigLink;
-#endif
-}
 void setRail(int i, bool state) {
   enabled[i] = state;
   if (!state) offAt[i] = millis();
-#if !SIMULATED_IO && PHYSICAL_OUTPUTS
+#if PHYSICAL_OUTPUTS
   digitalWrite(RELAY_PINS[i], state == ACTIVE_HIGH ? HIGH : LOW);
 #endif
 }
@@ -44,7 +39,9 @@ void ack(JsonDocument &request, int rail, const char *status) {
   reply["v"] = 1; reply["type"] = "ack"; reply["source"] = "esp32_rig_01";
   reply["command_id"] = request["command_id"]; reply["rail_id"] = request["rail_id"];
   reply["status"] = status; reply["enabled"] = rail >= 0 ? enabled[rail] : false;
-  reply["controller_uptime_ms"] = millis(); emit(reply, link());
+  reply["controller_uptime_ms"] = millis();
+  reply["physical_actuation"] = bool(PHYSICAL_OUTPUTS); reply["simulated_sensors"] = bool(SIMULATED_SENSORS);
+  radio.send(reply);
 }
 void handle(JsonDocument &doc, const char *body) {
   if (doc["type"] != "command") return;
@@ -68,16 +65,16 @@ void handle(JsonDocument &doc, const char *body) {
   recent[nextRecent].id = id; recent[nextRecent].body = body;
   recent[nextRecent].rail = rail; recent[nextRecent].enabled = requested;
   nextRecent = (nextRecent + 1) % 32;
-  lastId = id; lastCommand = millis();
+  lastId = id;
   ack(doc, rail, same ? "ALREADY_APPLIED" : "APPLIED");
 }
 void sample(float dt) {
-#if SIMULATED_IO
+#if SIMULATED_SENSORS
   for (int i = 0; i < 3; ++i) {
     current[i] = enabled[i] ? (i == 0 ? .6f : 2.f) : 0;
     voltage[i] = enabled[i] ? 11.9f : 0;
-    const float eq = ambient + 3.2f * current[i] * voltage[i];
-    temp[i] = eq + (temp[i] - eq) * expf(-dt / 300.f); validSensor[i] = true;
+    const float eq = ambient + (2.9f + .3f*i) * current[i] * voltage[i];
+    temp[i] = eq + (temp[i] - eq) * expf(-dt / (280.f+40.f*i)); validSensor[i] = true;
   }
 #else
   // Asynchronous 12-bit conversion; hardware sensor index/address map needs approval.
@@ -96,11 +93,14 @@ void sample(float dt) {
 }
 void protect() {
   for (int i = 0; i < 3; ++i) if (SHED_ALLOWED[i] && enabled[i] &&
-      (!validSensor[i] || temp[i] >= CRITICAL_C[i] || current[i] > 3 || (!SIMULATED_IO && millis() - lastCommand > LINK_TIMEOUT_MS))) setRail(i, false);
+      (!validSensor[i] || temp[i] >= CRITICAL_C[i] || current[i] > 3 ||
+       (PHYSICAL_OUTPUTS && !radio.healthy(millis())))) setRail(i, false);
 }
 void telemetry() {
   JsonDocument doc; doc["v"] = 1; doc["type"] = "telemetry"; doc["source"] = "esp32_rig_01";
   doc["seq"] = ++seq; doc["uptime_ms"] = millis();
+  doc["controller_session"] = radio.bootSession();
+  doc["simulated_sensors"] = bool(SIMULATED_SENSORS); doc["physical_outputs_enabled"] = bool(PHYSICAL_OUTPUTS);
   if (isfinite(ambient)) doc["ambient_temp_c"] = ambient; else doc["ambient_temp_c"] = nullptr;
   if (isfinite(bus)) doc["bus_voltage_v"] = bus; else doc["bus_voltage_v"] = nullptr;
   auto faults = doc["fault_flags"].to<JsonArray>(); auto rails = doc["rails"].to<JsonArray>();
@@ -112,15 +112,16 @@ void telemetry() {
     if (!SHED_ALLOWED[i] && temp[i] >= WARNING_C[i]) faults.add("PROTECTED_LOAD_ALARM");
   }
   if (lastId.length()) doc["last_applied_command_id"] = lastId; else doc["last_applied_command_id"] = nullptr;
-  emit(doc, link());
+  radio.send(doc);
 }
 void setup() {
   Serial.begin(115200);
-#if SIMULATED_IO
+  radio.begin(); radio.status(Serial);
+#if SIMULATED_SENSORS && !PHYSICAL_OUTPUTS
   armed = true;
-  for (int i = 0; i < 3; ++i) enabled[i] = true; // virtual loads only
+  for (int i = 0; i < 3; ++i) { enabled[i] = true; validSensor[i]=true; } // virtual loads only
+  sample(0); // initialize mock validity before the first local protection pass
 #else
-  rigLink.begin(115200, SERIAL_8N1, UART_RX, UART_TX);
   sensors.begin(); sensors.setWaitForConversion(false); sensors.requestTemperatures();
 #if PHYSICAL_OUTPUTS
   for (int pin : RELAY_PINS) { digitalWrite(pin, ACTIVE_HIGH ? LOW : HIGH); pinMode(pin, OUTPUT); }
@@ -129,12 +130,16 @@ void setup() {
 #endif
 }
 void loop() {
-#if !SIMULATED_IO && PHYSICAL_OUTPUTS
+#if PHYSICAL_OUTPUTS
   armed = HARDWARE_VERIFIED && digitalRead(ARM_PIN) == LOW;
   if (!armed) for (int i = 0; i < 3; ++i) if (SHED_ALLOWED[i] && enabled[i]) setRail(i, false);
 #endif
-  reader.poll(link(), handle);
+  radio.poll([](JsonDocument &doc,const char *body,size_t) { handle(doc,body); });
   const uint32_t now = millis();
-  if (now - lastSample >= 1000) { sample((now - lastSample) / 1000.f); lastSample = now; protect(); telemetry(); }
+  if (now - lastSample >= 1000) { sample((now - lastSample) / 1000.f); lastSample = now; protect(); telemetry(); radio.heartbeat(); }
+  if (now-lastStatus>=2000) { lastStatus=now; radio.status(Serial); }
+  bool healthy=radio.healthy(now);
+  if (linkWasHealthy && !healthy) { JsonDocument fault; fault["v"]=1; fault["type"]="diagnostic"; fault["source"]="esp32_rig_01"; fault["event"]="link_lost"; fault["physical_outputs_enabled"]=bool(PHYSICAL_OUTPUTS); emit(fault,Serial); }
+  linkWasHealthy=healthy;
   protect(); delay(1);
 }

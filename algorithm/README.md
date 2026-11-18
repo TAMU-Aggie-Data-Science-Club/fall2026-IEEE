@@ -4,6 +4,12 @@ Laptop forecasting → deterministic policy → ESP32 B bridge → ESP32 A local
 interlocks → independently switched 12 V demo branch. Never shed MCU power.
 All supplied fixtures and virtual runs are **SYNTHETIC / DEMO ONLY**.
 
+Current physical topology: **laptop USB ↔ B ↔ ESP-NOW unicast ↔ A**. No
+inter-board UART is used. Firmware sensor simulation, radio enable and physical
+output enable are independent. The [firmware guide](firmware/README.md) is the
+operator reference for role-specific builds/uploads, peer MAC/channel/security,
+independent A power, packet layout, safe bench tests and commissioning gates.
+
 The architecture correction adds oil-transformer physics in the model team and
 explicit model/hardware domain gating here. The dashboard selects IEEE C57.91,
 Alliander IEC, calibrated RC or the preserved Ridge benchmark. Oil models operate
@@ -36,6 +42,9 @@ current/downstream voltage; stored heat decays gradually. Scenarios: `normal`,
 time make behavior repeatable; UUID command IDs intentionally differ between
 runs. Final JSON reports actual ACKs, shed times, 60s cooling, final temperatures,
 protected-rail sheds and automatic restores.
+The virtual bridge now fragments/reassembles the same bounded radio envelope as
+firmware before invoking the virtual controller; live USB remains unaware of
+fragments. Reordering/loss/duplicates/CRC and reboot cases are regression-tested.
 
 Passive replay preserves all 2,993 packets and recorded transitions, including
 the scripted manual restore. It generates no commands. `--speed 0` uses virtual
@@ -99,15 +108,19 @@ at the next newline. The bridge never invents a controller reading or relay stat
 ## Firmware
 
 ```sh
-pio run -d algorithm/firmware/rig_controller
-pio run -d algorithm/firmware/bridge
+pio run -d algorithm/firmware/rig_controller -e controller_esp32dev
+pio run -d algorithm/firmware/bridge -e bridge_esp32dev
 ```
 
-Defaults: `esp32dev` (configurable), Arduino, `SIMULATED_IO=1`, physical outputs
-disabled. Common bounded framing is nonblocking. Rig mock I/O works on USB;
-dry-run bridge reports valid commands as **not forwarded** because UART pins
-are unapproved. Physical mode uses hardware UART. DS18B20 conversion is
-asynchronous; DC ACS712/voltage adapters require measured calibration.
+Defaults: generic `esp32dev` (configurable), Arduino, `SIMULATED_SENSORS=1`,
+`ENABLE_ESPNOW=1`, `PHYSICAL_OUTPUTS=0`, hardware verification false. Unicast peer
+addresses are supplied only in ignored local configuration. Missing peers produce
+diagnostics rather than fictional addresses or broadcast actuation. Full NDJSON
+messages are fragmented into ≤220-byte packets and validated after reassembly.
+DS18B20 conversion is asynchronous; real DC ACS712/voltage adapters still require
+approved GPIO and measured calibration. USB output on A is local diagnostics;
+telemetry and controller ACKs go over ESP-NOW to B. Heartbeat freshness, not
+absence of relay commands, supervises the radio link.
 Physical outputs require verified GPIO/calibration/polarity, compile-time enable
 and local runtime arming. Physical boot is off; no automatic reenergization.
 Local faults/command-heartbeat loss cut eligible loads independently. Protected
@@ -116,7 +129,7 @@ fuses, emergency stop or an independent thermal cutoff.
 
 Commissioning remains pending:
 
-- [ ] Exact ESP32 A/B boards, UART TX/RX cross-connect/common GND, 3.3 V logic only.
+- [ ] Exact ESP32 A/B boards and safe independent supplies; observed station MACs, matching channel and secure peer provisioning.
 - [ ] Sensor count/placement/addresses/pull-up, DC sensing and ADC calibration/noise.
 - [ ] Relay/MOSFET ratings/polarity/default off, fuses, emergency stop, independent thermal cutoff.
 - [ ] Approved real thresholds/heater/current limits and protected-load emergency behavior.
