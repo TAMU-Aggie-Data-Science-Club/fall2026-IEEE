@@ -16,6 +16,7 @@ PMs can push to `main` directly and merge pull requests.
 - @VChrollo24
 - @andybui0902
 - @anthony-mester
+- @chaitrashenoy-tamu
 - @dhruvshenoy
 - @ixm5447
 - @jiyasharma1
